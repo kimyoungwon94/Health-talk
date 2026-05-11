@@ -110,6 +110,8 @@
   .time-slot.booked { background:#fafafa; border-color:#e0e0e0; cursor:not-allowed; }
   .time-slot.booked .time-text { color:#bbb; }
   .time-slot.booked::after { content:'예약마감'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#bbb; background:rgba(250,250,250,.9); border-radius:8px; }
+  .time-slot.booked[data-label='시간마감']::after { content:'시간마감'; color:#c0a880; background:rgba(254,249,235,.92); }
+  .time-slot.booked[data-label='시간마감'] { border-color:#f0deb0; background:#fefae8; }
 
   /* ── FORM ── */
   .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
@@ -362,10 +364,21 @@ function renderCalendar() {
   }
 }
 
+function getNowKST() {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utc + 9 * 60 * 60000);
+}
+function isPastSlotKST(dateStr, timeStr) {
+  const nowKST = getNowKST();
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const [h,min] = timeStr.split(':').map(Number);
+  return new Date(y, m-1, d, h, min, 0) <= nowKST;
+}
 function getAvailableCount(ds) {
   const booked  = cachedBookings.filter(b => b.date===ds && b.status!=='rejected').map(b=>b.time);
   const blocked = cachedBlockedSlots.filter(b => b.date===ds).map(b=>b.time);
-  return TIME_SLOTS.filter(t => !booked.includes(t) && !blocked.includes(t)).length;
+  return TIME_SLOTS.filter(t => !booked.includes(t) && !blocked.includes(t) && !isPastSlotKST(ds,t)).length;
 }
 
 function selectDate(ds, cell) {
@@ -405,8 +418,13 @@ function renderTimeSlots() {
   const grid = document.getElementById('timeGrid');
   TIME_SLOTS.forEach(time => {
     const slot = document.createElement('div'); slot.className='time-slot';
-    if (taken.has(time)) {
+    const isPast = isPastSlotKST(selectedDate, time);
+    if (taken.has(time) || isPast) {
       slot.classList.add('booked');
+      if (isPast && !taken.has(time)) {
+        slot.innerHTML = `<span class="time-text" style="color:#bbb">${time}</span>`;
+        slot.setAttribute('data-label', '시간마감');
+      }
     } else {
       slot.innerHTML = `<span class="time-text">${time}</span><span class="time-status">예약 가능</span>`;
       if (time===selectedTime) { slot.classList.add('selected'); slot.querySelector('.time-status').textContent='선택됨'; }
