@@ -111,6 +111,10 @@
   .action-btn.confirm:hover{background:var(--success);color:white;}
   .action-btn.reject{border-color:var(--danger);color:var(--danger);background:var(--danger-light);}
   .action-btn.reject:hover{background:var(--danger);color:white;}
+  .action-btn.delete{border-color:#f5c2bf;color:#c0392b;background:#fff5f5;}
+  .action-btn.delete:hover{background:var(--danger);color:white;border-color:var(--danger);}
+  .action-btn.pending-back{border-color:#fcd34d;color:var(--warn);background:var(--warn-light);}
+  .action-btn.pending-back:hover{background:var(--warn);color:white;border-color:var(--warn);}
 
   /* BLOCK */
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
@@ -309,8 +313,14 @@
             </button>
             <div id="blockSuccessMsg" style="display:none;margin-top:10px;background:var(--success-light);border:1px solid #a7d7bc;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--success);font-weight:600;text-align:center;"></div>
           </div>
-          <div class="block-card">
+           <div class="block-card">
             <h3><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>차단된 시간 목록</h3>
+            <div id="bulkUnblockBar" style="display:none;background:var(--warn-light);border:1px solid #fcd34d;border-radius:9px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span id="bulkUnblockCount" style="font-size:12.5px;font-weight:600;color:var(--warn);flex:1;">0개 선택됨</span>
+              <button onclick="selectAllBlocked(true)" style="padding:5px 10px;border:1px solid #fcd34d;border-radius:7px;font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;background:white;color:var(--warn);">전체 선택</button>
+              <button onclick="selectAllBlocked(false)" style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;background:white;color:var(--text-mid);">전체 해제</button>
+              <button onclick="removeBulkBlocked()" style="padding:5px 12px;border:none;border-radius:7px;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;background:var(--danger);color:white;">선택 해제 적용</button>
+            </div>
             <div class="blocked-list" id="blockedList"></div>
           </div>
         </div>
@@ -520,9 +530,15 @@ function buildTable(list) {
 }
 
 function actions(b) {
-  if(b.status==='pending') return `<button class="action-btn confirm" onclick="updBooking('${b.id}','confirmed')">수락</button><button class="action-btn reject" onclick="updBooking('${b.id}','rejected')">거절</button>`;
-  if(b.status==='confirmed') return `<button class="action-btn reject" onclick="updBooking('${b.id}','rejected')">취소</button>`;
-  return `<button class="action-btn confirm" onclick="updBooking('${b.id}','confirmed')">복원</button>`;
+  const confirmBtn = `<button class="action-btn confirm" onclick="updBooking('${b.id}','confirmed')">수락</button>`;
+  const rejectBtn  = `<button class="action-btn reject"  onclick="updBooking('${b.id}','rejected')">거절</button>`;
+  const cancelBtn  = `<button class="action-btn reject"  onclick="updBooking('${b.id}','rejected')">취소</button>`;
+  const restoreBtn = `<button class="action-btn confirm" onclick="updBooking('${b.id}','confirmed')">복원</button>`;
+  const pendingBtn = `<button class="action-btn pending-back" onclick="updBooking('${b.id}','pending')">검토중으로</button>`;
+  const deleteBtn  = `<button class="action-btn delete"   onclick="delBooking('${b.id}','${b.name}')">삭제</button>`;
+  if (b.status === 'pending')   return confirmBtn + rejectBtn + deleteBtn;
+  if (b.status === 'confirmed') return cancelBtn  + pendingBtn + deleteBtn;
+  return restoreBtn + pendingBtn + deleteBtn;
 }
 
 function sbadge(s) {
@@ -531,6 +547,12 @@ function sbadge(s) {
 
 window.updBooking = async function(id,status) {
   try { await updateDoc(doc(db,'bookings',id),{status}); } catch(e){ alert('오류: '+e.message); }
+};
+
+window.delBooking = async function(id, name) {
+  if (!confirm(`[${name}] 예약을 완전히 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) return;
+  const {deleteDoc} = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  try { await deleteDoc(doc(db,'bookings',id)); } catch(e){ alert('오류: '+e.message); }
 };
 
 // ── EXCEL ──
@@ -647,11 +669,65 @@ window.removeBlock = async function(id) {
 };
 
 function renderBlockedList() {
-  const el=document.getElementById('blockedList');
-  if(!el) return;
-  const sorted=[...cachedBlocked].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
-  el.innerHTML=sorted.length?sorted.map(b=>`<div class="blocked-item"><div class="bi-info"><div class="bi-date">📅 ${fd(b.date)} ${b.time}</div>${b.reason?`<div class="bi-reason">${b.reason}</div>`:''}</div><button class="unblock-btn" onclick="removeBlock('${b.id}')">해제</button></div>`).join(''):`<div class="empty-state" style="padding:20px;"><p>차단된 시간이 없습니다.</p></div>`;
+  const el = document.getElementById('blockedList');
+  const bar = document.getElementById('bulkUnblockBar');
+  if (!el) return;
+  const sorted = [...cachedBlocked].sort((a,b) => a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  if (!sorted.length) {
+    if (bar) bar.style.display = 'none';
+    el.innerHTML = `<div class="empty-state" style="padding:20px;"><p>차단된 시간이 없습니다.</p></div>`;
+    return;
+  }
+  if (bar) bar.style.display = 'flex';
+  el.innerHTML = sorted.map(b => `
+    <div class="blocked-item" style="cursor:pointer;" onclick="toggleBlockCheck('${b.id}',this)">
+      <input type="checkbox" class="block-chk" data-id="${b.id}"
+        style="accent-color:var(--danger);width:15px;height:15px;flex-shrink:0;cursor:pointer;"
+        onclick="event.stopPropagation();toggleBlockCheck('${b.id}',this.closest('.blocked-item'))"/>
+      <div class="bi-info">
+        <div class="bi-date">📅 ${fd(b.date)} ${b.time}</div>
+        ${b.reason ? `<div class="bi-reason">${b.reason}</div>` : ''}
+      </div>
+      <button class="unblock-btn" onclick="event.stopPropagation();removeBlock('${b.id}')">해제</button>
+    </div>`).join('');
+  updateBulkCount();
 }
+
+window.toggleBlockCheck = function(id, row) {
+  const cb = row.querySelector('.block-chk');
+  cb.checked = !cb.checked;
+  row.style.background = cb.checked ? '#fdecea' : '#f8fbfc';
+  row.style.borderColor = cb.checked ? '#f5c2bf' : 'var(--border)';
+  updateBulkCount();
+};
+
+function updateBulkCount() {
+  const checked = document.querySelectorAll('.block-chk:checked').length;
+  const countEl = document.getElementById('bulkUnblockCount');
+  if (countEl) countEl.textContent = `${checked}개 선택됨`;
+}
+
+window.selectAllBlocked = function(checked) {
+  document.querySelectorAll('.block-chk').forEach(cb => {
+    cb.checked = checked;
+    const row = cb.closest('.blocked-item');
+    if (row) {
+      row.style.background = checked ? '#fdecea' : '#f8fbfc';
+      row.style.borderColor = checked ? '#f5c2bf' : 'var(--border)';
+    }
+  });
+  updateBulkCount();
+};
+
+window.removeBulkBlocked = async function() {
+  const ids = [...document.querySelectorAll('.block-chk:checked')].map(cb => cb.dataset.id);
+  if (!ids.length) { alert('해제할 시간을 선택해주세요.'); return; }
+  if (!confirm(`선택한 ${ids.length}개의 차단을 해제하시겠습니까?`)) return;
+  const {deleteDoc} = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  try {
+    await Promise.all(ids.map(id => deleteDoc(doc(db,'blockedSlots',id))));
+  } catch(e) { alert('오류: '+e.message); }
+};
 
 // ── SETTINGS ──
 window.changePw = function() {
