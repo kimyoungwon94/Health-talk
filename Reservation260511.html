@@ -320,7 +320,7 @@ let currentYear, currentMonth, selectedDate = null, selectedTime = null;
 const today = new Date(); today.setHours(0,0,0,0);
 currentYear  = today.getFullYear();
 currentMonth = today.getMonth();
-const TIME_SLOTS = ['09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
+const TIME_SLOTS = ['09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
 
 // ── CALENDAR ──
 function renderCalendar() {
@@ -347,8 +347,11 @@ function renderCalendar() {
     if (dt.getTime()===today.getTime()) cell.classList.add('today');
     if (isPast) {
       cell.classList.add('past');
-    } else if (isWeekend) {
+    } else if (isWeekend || isHoliday(ds)) {
       cell.classList.add('weekend');
+      if (isHoliday(ds)) {
+        cell.innerHTML += `<span style="font-size:8px;color:#e05a5a;font-weight:700;line-height:1;">공휴일</span>`;
+      }
     } else {
       const avail = getAvailableCount(ds);
       if (avail === 0) {
@@ -376,9 +379,12 @@ function isPastSlotKST(dateStr, timeStr) {
   return new Date(y, m-1, d, h, min, 0) <= nowKST;
 }
 function getAvailableCount(ds) {
+  if (isHoliday(ds)) return 0;
   const booked  = cachedBookings.filter(b => b.date===ds && b.status!=='rejected').map(b=>b.time);
   const blocked = cachedBlockedSlots.filter(b => b.date===ds).map(b=>b.time);
-  return TIME_SLOTS.filter(t => !booked.includes(t) && !blocked.includes(t) && !isPastSlotKST(ds,t)).length;
+  return TIME_SLOTS.filter(t =>
+    !booked.includes(t) && !blocked.includes(t) && !isPastSlotKST(ds, t)
+  ).length;
 }
 
 function selectDate(ds, cell) {
