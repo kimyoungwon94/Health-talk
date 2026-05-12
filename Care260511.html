@@ -602,9 +602,39 @@ function renderAdminCalendar() {
 function showCalDetail(ds) {
   acSelected=ds;
   const list=cachedBookings.filter(b=>b.date===ds);
-  document.getElementById('calDetailTitle').textContent=`${fd(ds)} 예약 현황 (${list.length}건)`;
+  const blocked=cachedBlocked.filter(b=>b.date===ds).map(b=>b.time);
+  const ALL_T=['09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
+  document.getElementById('calDetailTitle').textContent=`${fd(ds)} 예약 현황 (확정 ${list.filter(b=>b.status==='confirmed').length}건 / 대기 ${list.filter(b=>b.status==='pending').length}건)`;
   document.getElementById('calDetailCard').style.display='block';
-  document.getElementById('calDetailTable').innerHTML=list.length?buildTable(list):`<div class="empty-state"><p>해당 날짜 예약 없음</p></div>`;
+
+  // 타임라인 뷰
+  const timeline = ALL_T.map(t => {
+    const booking = list.find(b=>b.time===t && b.status!=='rejected');
+    const isBlocked = blocked.includes(t);
+    let bg='#f4f6f7', label='빈 슬롯', color='#8ba5b2', badge='';
+    if (isBlocked) { bg='#fef3c7'; label='차단됨'; color='#b45309'; }
+    if (booking) {
+      if (booking.status==='confirmed') { bg='#e8f5ee'; color='#2e7d52'; badge=`<span style="background:#2e7d52;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;">확정</span>`; }
+      if (booking.status==='pending')   { bg='#fef3c7'; color='#b45309'; badge=`<span style="background:#b45309;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;">대기</span>`; }
+      label = `${booking.dept} · ${booking.rank} ${booking.name}`;
+    }
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:9px;background:${bg};margin-bottom:6px;">
+      <span style="font-size:13px;font-weight:700;color:${color};min-width:44px;">${t}</span>
+      <span style="font-size:13px;color:${color};flex:1;">${label}${badge}</span>
+      ${booking ? `<span style="font-size:11px;color:${color};">${booking.phone}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('calDetailTable').innerHTML = `
+    <div style="padding:16px;">
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#2e7d52;"><span style="width:10px;height:10px;border-radius:3px;background:#e8f5ee;border:1px solid #2e7d52;display:inline-block;"></span>확정</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#b45309;"><span style="width:10px;height:10px;border-radius:3px;background:#fef3c7;border:1px solid #b45309;display:inline-block;"></span>대기</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#8ba5b2;"><span style="width:10px;height:10px;border-radius:3px;background:#f4f6f7;border:1px solid #d6e8ef;display:inline-block;"></span>빈 슬롯</span>
+      </div>
+      ${timeline}
+      ${list.length ? `<div style="margin-top:16px;border-top:1px solid #d6e8ef;padding-top:16px;"><p style="font-size:13px;font-weight:700;color:#1c2b36;margin-bottom:10px;">📋 상세 예약 목록</p>${buildTable(list)}</div>` : ''}
+    </div>`;
   renderAdminCalendar();
 }
 
