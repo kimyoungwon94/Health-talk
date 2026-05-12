@@ -315,6 +315,35 @@ function startListeners() {
   });
 }
 
+// ── 대한민국 공휴일 ──
+const KR_HOLIDAYS = new Set([
+  '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+  '2025-03-01','2025-05-05','2025-05-06','2025-06-06',
+  '2025-08-15','2025-10-03','2025-10-06','2025-10-07','2025-10-08','2025-10-09',
+  '2025-12-25',
+  '2026-01-01','2026-02-17','2026-02-18','2026-02-19',
+  '2026-03-01','2026-05-05','2026-05-25','2026-06-06',
+  '2026-08-15','2026-09-24','2026-09-25','2026-09-26',
+  '2026-10-03','2026-10-09','2026-12-25',
+  '2027-01-01','2027-02-08','2027-02-09','2027-02-10',
+  '2027-03-01','2027-05-05','2027-05-13','2027-06-06',
+  '2027-08-15','2027-09-14','2027-09-15','2027-09-16',
+  '2027-10-03','2027-10-09','2027-12-25'
+]);
+function isHoliday(dateStr) { return KR_HOLIDAYS.has(dateStr); }
+
+function getNowKST() {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utc + 9 * 60 * 60000);
+}
+function isPastSlotKST(dateStr, timeStr) {
+  const nowKST = getNowKST();
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const [h,min] = timeStr.split(':').map(Number);
+  return new Date(y, m-1, d, h, min, 0) <= nowKST;
+}
+
 // ── STATE ──
 let currentYear, currentMonth, selectedDate = null, selectedTime = null;
 const today = new Date(); today.setHours(0,0,0,0);
